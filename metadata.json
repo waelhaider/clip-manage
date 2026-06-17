@@ -1,0 +1,6 @@
+{
+  "name": "Clipboard Manager",
+  "description": "مدير الحافظة: تطبيق ويب مبتكر لإنشاء وإدارة تبويبات متعددة لحفظ النصوص والقصاصات وإدارتها بسهولة تامة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

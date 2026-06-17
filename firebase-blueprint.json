@@ -1,0 +1,106 @@
+{
+  "entities": {
+    "Settings": {
+      "title": "System Settings",
+      "description": "Global application properties and owner definitions",
+      "type": "object",
+      "properties": {
+        "ownerEmail": {
+          "type": "string",
+          "description": "Email address of the authorized content owner"
+        },
+        "lastSync": {
+          "type": "number",
+          "description": "Unix timestamp of last backup sync"
+        }
+      },
+      "required": ["ownerEmail"]
+    },
+    "Board": {
+      "title": "Board",
+      "description": "A notebook board which contains multiple notes",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the board"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the board"
+        },
+        "order": {
+          "type": "number",
+          "description": "Determines visual sort sequence of boards"
+        }
+      },
+      "required": ["id", "name", "order"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "A textual note belonging to a board",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the note"
+        },
+        "boardId": {
+          "type": "string",
+          "description": "Owner board ID"
+        },
+        "content": {
+          "type": "string",
+          "description": "Note main body content text"
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Creation or update Unix timestamp"
+        }
+      },
+      "required": ["id", "boardId", "content", "timestamp"]
+    },
+    "TrashNote": {
+      "title": "Trash Note",
+      "description": "A deleted note stored in the trash list",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the removed note"
+        },
+        "boardId": {
+          "type": "string",
+          "description": "Original board ID"
+        },
+        "content": {
+          "type": "string",
+          "description": "Note body content"
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Original note timestamp"
+        }
+      },
+      "required": ["id", "boardId", "content", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "Application metadata settings"
+    },
+    "/boards/{boardId}": {
+      "schema": "Board",
+      "description": "The custom boards created by the owner"
+    },
+    "/notes/{noteId}": {
+      "schema": "Note",
+      "description": "Active notes belonging to the boards"
+    },
+    "/trash/{trashId}": {
+      "schema": "TrashNote",
+      "description": "Trash items cleared by the owner"
+    }
+  }
+}

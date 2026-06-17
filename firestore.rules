@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny fallback
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Auth helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedEmail() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email != null);
+    }
+
+    function isOwner() {
+      return isVerifiedEmail() && 
+             request.auth.token.email == get(/databases/$(database)/documents/settings/global).data.ownerEmail;
+    }
+
+    // Global settings schema
+    match /settings/global {
+      allow read: if true; // Publicly readable by any user on any device
+      
+      // Permit creation of global settings if not already created, or if written by the declared owner
+      allow create: if isVerifiedEmail() && (
+        !exists(/databases/$(database)/documents/settings/global) ||
+        request.auth.token.email == get(/databases/$(database)/documents/settings/global).data.ownerEmail
+      );
+      
+      allow update: if isVerifiedEmail() && 
+                    request.auth.token.email == get(/databases/$(database)/documents/settings/global).data.ownerEmail;
+      
+      allow delete: if false; // Settings must never be deleted
+    }
+
+    // Boards rules
+    match /boards/{boardId} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+
+    // Notes rules
+    match /notes/{noteId} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+
+    // Trash rules
+    match /trash/{trashId} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
+  }
+}
