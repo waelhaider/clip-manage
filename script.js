@@ -231,7 +231,7 @@ function updateSyncBadge() {
     
     if (currentUser && isOwner && ownerEmail) {
         indicator.innerHTML = `
-            <div style="display: flex; gap: 6px; align-items: center; margin-right: 0px; margin-left: 5px;">
+            <div style="display: flex; gap: 6px; align-items: center; margin-right: -10px; margin-left: 5px;">
                 <span id="badge-sync-trigger" style="display: inline-block; width: 14px; height: 14px; background-color: #10b981; border: 2px solid #059669; border-radius: 50%; cursor: pointer; transition: transform 0.2s;" title="مزامنة تلقائية نشطة (أنقر للمزامنة اليدوية الإضافية)"></span>
             </div>
         `;
@@ -291,10 +291,10 @@ function showTrialBanner(daysLeft) {
     if (!trialBanner) {
         trialBanner = document.createElement('div');
         trialBanner.id = 'trial-banner-indicator';
-        trialBanner.style.cssText = 'background: #e0f2fe; border: 1px solid #bae6fd; padding: 4px; margin-top: 41px; border-radius: 8px; text-align: center; color: #0369a1; font-size: 10px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 1px;';
+        trialBanner.style.cssText = 'background: #e0f2fe; border: 1px solid #bae6fd; padding: 4px; margin-top: 41px; border-radius: 8px; text-align: center; color: #0369a1; font-size: 11px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 1px;';
         mainContainer.insertBefore(trialBanner, mainContainer.firstChild);
     }
-    trialBanner.innerHTML = `نسخة كاملة مجانية لمشاهدة العمل  ..<span style="color: #ef4444;"><b>(${daysLeft}  يوم )</b> على انتهاء التجربة`;
+    trialBanner.innerHTML = `نسخة كاملة مجانية لمشاهدة العمل  .. <span style="color: #ef4444;"><b>(${daysLeft}  يوم </b> على انتهاء التجربة )`;
 }
 
 function showGlobalGiftBanner() {
@@ -1256,7 +1256,7 @@ function renderNotes() {
             lockContainer.innerHTML += `
                 <div style="width: 100%; border-top: 1px solid #f1f5f9; padding-top: 12px;">
                     <p style="font-size: 12px; color: #64748b; margin-bottom: 12px; font-weight: 500;">
-                        سجل دخولك الآن لتبدأ فوراً فترة تجريبية مجانية كاملة مدتها 7 أيام:
+                        سجل دخولك الآن لتبدأ فترة تجريبية مجانية كاملة لمدة محدودة:
                     </p>
                     <button id="lock-login-btn" class="primary-btn" style="width: 100%; padding: 10px; font-size: 13.5px; font-weight: bold; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
                         🔑 تسجيل الدخول بالبريد الإلكتروني
