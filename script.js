@@ -19,6 +19,11 @@ let isOwner = true; // By default can write (local fallback mode)
 let ownerEmail = null;
 let googleDriveFileId = null;
 
+// Premium Membership & Licensing States
+let isAllFree = false;          // True if owner opens the entire app for everyone (gift option)
+let currentUserLicense = null;  // Holds license details {email, activated, activationCode, trialStartDate}
+let isUserPremium = false;      // True if the user has premium access (active trial, active license, or owner)
+
 // Firebase & Drive Helper Functions
 async function firestoreWriteNote(note) {
     if (!db || !isOwner) return;
@@ -275,6 +280,270 @@ function updateSyncBadge() {
     }
 }
 
+// Premium Membership & Licensing Helpers
+function showTrialBanner(daysLeft) {
+    let mainContainer = document.querySelector('.main');
+    if (!mainContainer) return;
+    
+    let trialBanner = document.getElementById('trial-banner-indicator');
+    if (!trialBanner) {
+        trialBanner = document.createElement('div');
+        trialBanner.id = 'trial-banner-indicator';
+        trialBanner.style.cssText = 'background: #e0f2fe; border: 1px solid #bae6fd; padding: 10px; margin-bottom: 12px; border-radius: 8px; text-align: center; color: #0369a1; font-size: 13px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;';
+        mainContainer.insertBefore(trialBanner, mainContainer.firstChild);
+    }
+    trialBanner.innerHTML = `🌟 النسخة الكاملة مجانية تجريبية لمشاهدة العمل والبحث فيه (متبقي <b>${daysLeft} أيام</b> على انتهاء التجربة).`;
+}
+
+function showGlobalGiftBanner() {
+    let mainContainer = document.querySelector('.main');
+    if (!mainContainer) return;
+    
+    let trialBanner = document.getElementById('trial-banner-indicator');
+    if (!trialBanner) {
+        trialBanner = document.createElement('div');
+        trialBanner.id = 'trial-banner-indicator';
+        trialBanner.style.cssText = 'background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; margin-bottom: 12px; border-radius: 8px; text-align: center; color: #166534; font-size: 13px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;';
+        mainContainer.insertBefore(trialBanner, mainContainer.firstChild);
+    }
+    trialBanner.innerHTML = `🎁 هدية من المالك: تم فتح النسخة الكاملة مجاناً لفترة محدودة لجميع الزوار!`;
+}
+
+async function checkLicenseAndAccess() {
+    isAllFree = false;
+    currentUserLicense = null;
+    isUserPremium = false;
+    
+    // 1. Get global settings to evaluate allFree
+    try {
+        const globalRef = doc(db, "settings", "global");
+        const docSnap = await getDoc(globalRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            isAllFree = !!data.allFree;
+        }
+    } catch (e) {
+        console.error("Failed to read global free access mode:", e);
+    }
+
+    // 2. Clear trial banner/indicator if any
+    let trialBanner = document.getElementById('trial-banner-indicator');
+    if (trialBanner) trialBanner.remove();
+
+    // 3. Evaluate premium access
+    if (isOwner) {
+        isUserPremium = true;
+    } else if (isAllFree) {
+        isUserPremium = true;
+        showGlobalGiftBanner();
+    } else if (currentUser) {
+        const normalizedEmail = currentUser.email.toLowerCase().trim();
+        try {
+            const licenseRef = doc(db, "licenses", normalizedEmail);
+            const licenseDoc = await getDoc(licenseRef);
+            if (licenseDoc.exists()) {
+                currentUserLicense = licenseDoc.data();
+            } else {
+                // First login, start 7-day trial
+                const trialStart = Date.now();
+                currentUserLicense = {
+                    email: normalizedEmail,
+                    activated: false,
+                    activationCode: "", // blank initially, owner can set in panel
+                    trialStartDate: trialStart,
+                    expiryDate: null
+                };
+                await setDoc(licenseRef, currentUserLicense);
+            }
+            
+            if (currentUserLicense.activated) {
+                isUserPremium = true;
+            } else if (currentUserLicense.trialStartDate) {
+                const elapsed = Date.now() - currentUserLicense.trialStartDate;
+                const trialDuration = 7 * 24 * 60 * 60 * 1000; // 7 days
+                if (elapsed < trialDuration) {
+                    isUserPremium = true;
+                    const daysLeft = Math.max(1, Math.ceil((trialDuration - elapsed) / (24 * 60 * 60 * 1000)));
+                    showTrialBanner(daysLeft);
+                } else {
+                    isUserPremium = false;
+                }
+            } else {
+                isUserPremium = false;
+            }
+        } catch (err) {
+            console.error("Firestore loading license exception:", err);
+            isUserPremium = false;
+        }
+    } else {
+        isUserPremium = false;
+    }
+}
+
+async function renderOwnerLicenseManager() {
+    const parent = document.getElementById('owner-license-manager');
+    if (!parent) return;
+
+    if (!isOwner || !currentUser) {
+        parent.style.display = 'none';
+        return;
+    }
+
+    parent.style.display = 'block';
+    
+    // Fetch licenses list from Firestore
+    let licensesList = [];
+    try {
+        const snap = await getDocs(collection(db, "licenses"));
+        snap.forEach(docSnap => {
+            licensesList.push(docSnap.data());
+        });
+    } catch (e) {
+        console.error("Owner cannot read licenses:", e);
+    }
+
+    parent.innerHTML = `
+        <h4 style="font-size: 13px; font-weight: bold; color: #65a30d; margin-bottom: 6px; direction: rtl; text-align: right;">📋 لوحة المالك لتفعيل المشتركين</h4>
+        
+        <!-- Toggle global free gift status -->
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px; direction: rtl; font-size: 11.5px;">
+            <input type="checkbox" id="all-free-toggle" ${isAllFree ? 'checked' : ''} style="cursor: pointer; width: 14px; height: 14px; accent-color: #65a30d;">
+            <label for="all-free-toggle" style="cursor: pointer; color: #3f6212; font-weight: bold;">🎁 فتح العمل كلياً ومجاناً للجميع كهدية</label>
+        </div>
+
+        <!-- Add Subscriber form -->
+        <div style="background: #f4f4f3; border-radius: 6px; padding: 6px; margin-bottom: 10px; direction: rtl;">
+            <p style="font-size: 11px; font-weight: bold; margin-bottom: 4px; color: #1e293b;">توليد كود تفعيل جديد:</p>
+            <div style="display: flex; gap: 4px;">
+                <input type="email" id="new-license-email" placeholder="بريد المشترك..." style="flex: 1; padding: 4px 6px; font-size: 11.5px; border: 1px solid #cbd5e1; border-radius: 4px;">
+                <button id="add-license-code-btn" style="background: #65a30d; color: white; border: none; padding: 4px 8px; font-size: 11px; border-radius: 4px; cursor: pointer; font-weight: bold;">حفظ</button>
+            </div>
+        </div>
+
+        <!-- Licensed emails lists -->
+        <p style="font-size: 11px; font-weight: bold; color: #475569; margin-bottom: 4px; direction: rtl; text-align: right;">أكواد التفعيل المسجلة:</p>
+        <div style="max-height: 160px; overflow-y: auto; direction: rtl; text-align: right;">
+            ${licensesList.length === 0 ? '<p style="font-size: 10.5px; color: #94a3b8; text-align: center;">لا يوجد مشتركين مسجلين حالياً</p>' : ''}
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                ${licensesList.map(lic => {
+                    let statusLabel = '';
+                    let statusColor = '#475569';
+                    if (lic.activated) {
+                        statusLabel = 'مدفوع نشط';
+                        statusColor = '#16a34a';
+                    } else if (lic.trialStartDate) {
+                        const elapsed = Date.now() - lic.trialStartDate;
+                        const daysLeft = Math.max(0, Math.ceil((7 * 24 * 60 * 60 * 1000 - elapsed) / (24 * 60 * 60 * 1000)));
+                        if (daysLeft > 0) {
+                            statusLabel = `تجريبي (${daysLeft} يوم)`;
+                            statusColor = '#0284c7';
+                        } else {
+                            statusLabel = 'تجربة منتهية 🚫';
+                            statusColor = '#dc2626';
+                        }
+                    } else {
+                        statusLabel = 'انتظار التنشيط';
+                        statusColor = '#ea580c';
+                    }
+                    return `
+                        <div style="box-shadow: 0 1px 2px rgba(0,0,0,0.02); background: white; border: 1px solid #e1e1de; border-radius: 4px; padding: 4px 6px; display: flex; flex-direction: column; gap: 2px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;">
+                                <span style="font-size: 10.5px; font-weight: bold; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; text-transform: lowercase;">${lic.email}</span>
+                                <button class="delete-lic-btn" data-email="${lic.email}" style="background: none; border: none; font-size: 10.5px; color: #ef4444; cursor: pointer; padding: 2px;" title="حذف الاشتراك">🗑️</button>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #4b5563;">
+                                <div>كود: <b style="color: #65a30d; font-family: monospace; font-size: 11px;">${lic.activationCode || 'بدون'}</b></div>
+                                <div style="color: ${statusColor}; font-weight: bold;">${statusLabel}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+
+    // Hook listeners
+    const giftToggle = document.getElementById('all-free-toggle');
+    if (giftToggle) {
+        giftToggle.onchange = async () => {
+            const isGift = giftToggle.checked;
+            try {
+                const globalRef = doc(db, "settings", "global");
+                await setDoc(globalRef, {
+                    ownerEmail: ownerEmail || currentUser.email,
+                    ownerName: currentUser.displayName || '',
+                    lastSync: Date.now(),
+                    allFree: isGift
+                }, { merge: true });
+                isAllFree = isGift;
+                showToast(isGift ? "🎁 تم تفعيل الهدية ترحيباً بالجميع!" : "🔒 تم تفعيل اشتراك الأعضاء المتميزين.");
+                
+                // Reload configuration and re-evaluate
+                await loadCloudData();
+            } catch (e) {
+                console.error("Failed to toggle global free status:", e);
+                showToast("حدث خطأ أثناء حفظ الإعدادات سحابياً.");
+                giftToggle.checked = !isGift;
+            }
+        };
+    }
+
+    const addBtn = document.getElementById('add-license-code-btn');
+    if (addBtn) {
+        addBtn.onclick = async () => {
+            const emailInput = document.getElementById('new-license-email');
+            const targetMail = emailInput.value.trim().toLowerCase();
+            if (!targetMail || !targetMail.includes('@')) {
+                showToast("يرجى إدخال بريد إلكتروني صحيح");
+                return;
+            }
+
+            addBtn.disabled = true;
+            addBtn.textContent = "...";
+
+            try {
+                const actCode = Math.floor(100000 + Math.random() * 900000).toString();
+                const licRef = doc(db, "licenses", targetMail);
+                
+                await setDoc(licRef, {
+                    email: targetMail,
+                    activationCode: actCode,
+                    activated: false,
+                    trialStartDate: null,
+                    expiryDate: null
+                }, { merge: true });
+
+                showToast(`🎉 تم حفظ كود التنشيط ${actCode} للمشترك!`);
+                emailInput.value = '';
+                await renderOwnerLicenseManager();
+            } catch (e) {
+                console.error("Owner cannot generate/save license:", e);
+                showToast("حدث خطأ أثناء حفظ الاشتراك.");
+            } finally {
+                addBtn.disabled = false;
+                addBtn.textContent = "حفظ";
+            }
+        };
+    }
+
+    const deleteBtns = parent.querySelectorAll('.delete-lic-btn');
+    deleteBtns.forEach(btn => {
+        btn.onclick = async () => {
+            const targetMail = btn.getAttribute('data-email');
+            showCustomConfirm(`هل أنت متأكد من إلغاء اشتراك البريد ${targetMail}؟`, async () => {
+                try {
+                    await deleteDoc(doc(db, "licenses", targetMail));
+                    showToast("تم إلغاء الاشتراك وحذف الكود بنجاح.");
+                    await loadCloudData();
+                } catch (e) {
+                    console.error("Failed to delete license:", e);
+                    showToast("حدث خطأ أثناء إلغاء الاشتراك.");
+                }
+            });
+        };
+    });
+}
+
 async function loadCloudData() {
     try {
         const globalRef = doc(db, "settings", "global");
@@ -344,6 +613,8 @@ async function loadCloudData() {
                 activeBoardId = boards[0]?.id || '1';
             }
             
+            await checkLicenseAndAccess();
+            
             renderBoardsNav();
             renderBoardsList();
             renderNotes();
@@ -356,6 +627,7 @@ async function loadCloudData() {
             if (currentUser && currentUser.email) {
                 ownerEmail = currentUser.email;
                 isOwner = true;
+                isUserPremium = true;
                 try {
                     await setDoc(globalRef, {
                         ownerEmail: currentUser.email,
@@ -370,6 +642,7 @@ async function loadCloudData() {
             } else {
                 // No logged in user, default to local owner mode
                 isOwner = true;
+                isUserPremium = true;
                 ownerEmail = null;
             }
             applyOwnershipUIRestrictions();
@@ -525,6 +798,7 @@ function updateAuthUI() {
         const loginBtn = document.getElementById('auth-login-btn');
         if (loginBtn) loginBtn.onclick = handleLogin;
     }
+    renderOwnerLicenseManager();
 }
 
 // State
@@ -812,7 +1086,10 @@ function renderBoardsNav() {
     sortedBoards.forEach(board => {
         const btn = document.createElement('button');
         btn.className = `board-btn ${board.id === activeBoardId ? 'active' : ''}`;
-        btn.textContent = board.name;
+        
+        const isPremiumBoard = !board.isFree && !isUserPremium;
+        btn.textContent = isPremiumBoard ? '🔒 ' + board.name : board.name;
+        
         const count = notes.filter(n => n.boardId === board.id).length;
         if (count > 0) {
             const badge = document.createElement('span');
@@ -851,7 +1128,9 @@ function renderBoardsList() {
 
         const name = document.createElement('span');
         name.className = 'board-name';
-        name.textContent = board.name;
+        
+        const isPremiumBoard = !board.isFree && !isUserPremium;
+        name.textContent = isPremiumBoard ? '🔒 ' + board.name : board.name;
 
         const actions = document.createElement('div');
         actions.className = 'board-actions';
@@ -880,6 +1159,110 @@ function renderBoardsList() {
 
 // Render notes
 function renderNotes() {
+    const currentBoard = boards.find(b => b.id === activeBoardId);
+    const isLockedBoard = currentBoard && !currentBoard.isFree && !isUserPremium;
+
+    if (isLockedBoard) {
+        elements.notesList.innerHTML = '';
+        
+        const lockContainer = document.createElement('div');
+        lockContainer.style.cssText = 'display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; margin-top: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); max-width: 500px; margin-left: auto; margin-right: auto; transition: all 0.3s;';
+        
+        lockContainer.innerHTML = `
+            <div style="font-size: 42px; margin-bottom: 16px;">🔒</div>
+            <h3 style="font-size: 20px; font-weight: bold; color: #1e293b; margin-bottom: 12px; font-family: 'Noto Sans Arabic', sans-serif;">محتوى متميز (النسخة الكاملة)</h3>
+            <p style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 24px; text-align: justify; direction: rtl; font-family: 'Noto Sans Arabic', sans-serif; padding: 0 10px;">
+                هذا التبويب يحتوي على نصوص متميزة منتقاة تمثل سنوات من القراءة والبحث العلمي والأكاديمي والتحقيق الدقيق. لمواصلة القراءة والاطلاع والبحث، يرجى تفعيل النسخة الكاملة أو الاشتراك بحساب متميز.
+            </p>
+        `;
+        
+        if (!currentUser) {
+            lockContainer.innerHTML += `
+                <div style="width: 100%; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                    <p style="font-size: 13px; color: #64748b; margin-bottom: 16px; font-weight: 500;">
+                        سجل دخولك الآن لتبدأ فوراً فترة تجريبية مجانية كاملة مدتها 7 أيام:
+                    </p>
+                    <button id="lock-login-btn" class="primary-btn" style="width: 100%; padding: 12px; font-size: 14px; font-weight: bold; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        🔑 تسجيل الدخول بالبريد الإلكتروني
+                    </button>
+                </div>
+            `;
+            elements.notesList.appendChild(lockContainer);
+            
+            const btn = document.getElementById('lock-login-btn');
+            if (btn) {
+                btn.onclick = () => {
+                    handleLogin();
+                };
+            }
+        } else {
+            lockContainer.innerHTML += `
+                <div style="width: 100%; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                    <p style="font-size: 13px; color: #475569; margin-bottom: 14px; line-height: 1.5;">
+                        الحساب الحالي: <span style="font-weight: bold; color: #0284c7;">${currentUser.email}</span>
+                        <br/>
+                        <span style="color: #ef4444; font-weight: bold; display: inline-block; margin-top: 6px;">🚫 انتهت الفترة التجريبية المجانية للنسخة الكاملة</span>
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+                        <input id="activation-code" type="text" placeholder="أدخل كود التفعيل المخصص لبريدك الإلكتروني..." 
+                               style="width: 100%; padding: 12px; border: 1.5px solid #cbd5e1; border-radius: 8px; text-align: center; font-size: 14px; font-weight: bold; letter-spacing: 1.5px; outline: none; transition: border-color 0.2s;"
+                               onfocus="this.style.borderColor='#10b981'" onblur="this.style.borderColor='#cbd5e1'">
+                        <button id="activate-now-btn" class="primary-btn" style="width: 100%; padding: 12px; font-size: 14.5px; font-weight: bold; border-radius: 8px; background-color: #10b981; border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: opacity 0.2s;">
+                            🚀 تفعيل النسخة الكاملة الآن
+                        </button>
+                    </div>
+                    <p style="font-size: 11.5px; color: #94a3b8; margin-top: 12px; direction: rtl; line-height: 1.4;">
+                        * يرجى إرسال بريدك الإلكتروني للمالك للحصول على كود التنشيط الخاص بك حصراً.
+                    </p>
+                </div>
+            `;
+            elements.notesList.appendChild(lockContainer);
+            
+            const btn = document.getElementById('activate-now-btn');
+            if (btn) {
+                btn.onclick = async () => {
+                    const codeVal = document.getElementById('activation-code').value.trim();
+                    if (!codeVal) {
+                        showToast("يرجى إدخال كود التفعيل");
+                        return;
+                    }
+                    btn.disabled = true;
+                    btn.textContent = "جاري الاتصال والتحقق...";
+                    
+                    try {
+                        const normEmail = currentUser.email.toLowerCase().trim();
+                        const licRef = doc(db, "licenses", normEmail);
+                        const licDoc = await getDoc(licRef);
+                        
+                        if (licDoc.exists()) {
+                            const licData = licDoc.data();
+                            if (licData.activationCode && licData.activationCode.trim() === codeVal) {
+                                await setDoc(licRef, {
+                                    ...licData,
+                                    activated: true,
+                                    activatedAt: Date.now()
+                                });
+                                showToast("🎉 تم التفعيل بنجاح! شكراً لدعمك وثقتك بالعمل.");
+                                await loadCloudData();
+                            } else {
+                                showToast("❌ كود التفعيل غير صحيح أو غير مرتبط هذا الإيميل.");
+                            }
+                        } else {
+                            showToast("❌ لم يتم العثور على قاعدة بيانات مسجلة لبريدك. يرجى التواصل مع المالك.");
+                        }
+                    } catch (err) {
+                        console.error("Activation path exception: ", err);
+                        showToast("حدث خطأ أثناء تفعيل حسابك سحابياً.");
+                    } finally {
+                        btn.disabled = false;
+                        btn.textContent = "🚀 تفعيل النسخة الكاملة الآن";
+                    }
+                };
+            }
+        }
+        return; // HALT notes render
+    }
+
     let filteredNotes = notes
         .filter(note => note.boardId === activeBoardId)
         .filter(note => note.content.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -1040,6 +1423,10 @@ function openModal(type, data = null) {
             document.getElementById('board-modal-title').textContent =
                 type === 'ADD_BOARD' ? 'إضافة لوحة جديدة' : 'تعديل اسم اللوحة';
             elements.boardInput.value = data ? data.name : '';
+            const freeChkbx = document.getElementById('board-free-checkbox');
+            if (freeChkbx) {
+                freeChkbx.checked = data ? !!data.isFree : false;
+            }
             break;
         case 'DELETE_BOARD':
             elements.deleteBoardModal.classList.add('show');
@@ -1276,10 +1663,14 @@ function handleBoardSubmit(e) {
     const name = elements.boardInput.value.trim();
     if (!name) return;
 
+    const freeChkbx = document.getElementById('board-free-checkbox');
+    const isFree = freeChkbx ? !!freeChkbx.checked : false;
+
     if (modal.type === 'ADD_BOARD') {
         const newBoard = {
             id: crypto.randomUUID(),
             name,
+            isFree,
             order: boards.length
         };
         boards = [...boards, newBoard];
@@ -1287,7 +1678,7 @@ function handleBoardSubmit(e) {
         showToast('تمت الإضافة');
         firestoreWriteBoard(newBoard);
     } else if (modal.type === 'EDIT_BOARD_NAME') {
-        const updatedBoard = { ...modal.data, name };
+        const updatedBoard = { ...modal.data, name, isFree };
         boards = boards.map(b => b.id === modal.data.id ? updatedBoard : b);
         showToast('تم التعديل');
         firestoreWriteBoard(updatedBoard);

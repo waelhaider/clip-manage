@@ -54,5 +54,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isOwner();
     }
+
+    // Licenses subscription rules
+    match /licenses/{emailLower} {
+      allow read: if isSignedIn() && (request.auth.token.email.toLower() == emailLower || isOwner());
+      allow create, update: if isSignedIn() && (request.auth.token.email.toLower() == emailLower || isOwner());
+      allow delete: if isOwner();
+    }
   }
 }

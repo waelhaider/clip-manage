@@ -22,13 +22,16 @@
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar">
         <div class="sidebar-header">
-            <h2>القائمة الرئيسية</h2>
+            <h3>القائمة الرئيسية</h3>
             <button id="close-sidebar" class="close-btn">×</button>
         </div>
         <div class="sidebar-content">
             <!-- Auth & Sync Section -->
             <div id="auth-section" class="sidebar-auth-section">
                 <!-- Will be dynamically populated via script.js -->
+            </div>
+            <div id="owner-license-manager" style="display: none; padding: 10px; border: 1px dashed #65a30d; border-radius: 8px; margin: 10px 0; background: #fdfdfc;">
+                <!-- Owner subscription panel dynamically loaded here -->
             </div>
             <div class="sidebar-divider"></div>
 
@@ -124,6 +127,18 @@
             <h3 id="board-modal-title">إضافة لوحة جديدة</h3>
             <form id="board-form">
                 <input id="board-input" type="text" placeholder="اسم اللوحة...">
+                <div style="display: flex; align-items: center; gap: 8px; margin: 12px 2px; font-size: 13px;">
+                    <style>
+                        #board-free-checkbox {
+                            width: 16px;
+                            height: 16px;
+                            cursor: pointer;
+                            accent-color: #10b981;
+                        }
+                    </style>
+                    <input type="checkbox" id="board-free-checkbox">
+                    <label for="board-free-checkbox" style="cursor: pointer; user-select: none; font-weight: 500; color: #475569;">لوحة مجانية للجميع (غير المشتركين أيضا)</label>
+                </div>
                 <div class="modal-actions">
                     <button type="submit" class="primary-btn">حفظ</button>
                     <button type="button" id="cancel-board" class="secondary-btn">إلغاء</button>

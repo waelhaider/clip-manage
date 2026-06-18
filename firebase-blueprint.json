@@ -12,6 +12,10 @@
         "lastSync": {
           "type": "number",
           "description": "Unix timestamp of last backup sync"
+        },
+        "allFree": {
+          "type": "boolean",
+          "description": "Whether the app is globally free for everyone (gift option)"
         }
       },
       "required": ["ownerEmail"]
@@ -32,6 +36,10 @@
         "order": {
           "type": "number",
           "description": "Determines visual sort sequence of boards"
+        },
+        "isFree": {
+          "type": "boolean",
+          "description": "Whether the board is public/free for guest users"
         }
       },
       "required": ["id", "name", "order"]
@@ -83,6 +91,34 @@
         }
       },
       "required": ["id", "boardId", "content", "timestamp"]
+    },
+    "License": {
+      "title": "User subscription/license details",
+      "description": "Premium status and key for a visitor's email address",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Normalized visitor email address"
+        },
+        "activationCode": {
+          "type": "string",
+          "description": "Uniquely generated/assigned code for whitelisted activation"
+        },
+        "activated": {
+          "type": "boolean",
+          "description": "Whether the premium access is activated for this email"
+        },
+        "trialStartDate": {
+          "type": "number",
+          "description": "Unix timestamp of initial login"
+        },
+        "expiryDate": {
+          "type": "number",
+          "description": "Optional specific expiration Unix timestamp"
+        }
+      },
+      "required": ["email"]
     }
   },
   "firestore": {
@@ -101,6 +137,10 @@
     "/trash/{trashId}": {
       "schema": "TrashNote",
       "description": "Trash items cleared by the owner"
+    },
+    "/licenses/{emailLower}": {
+      "schema": "License",
+      "description": "Visitor license registry"
     }
   }
 }
