@@ -213,8 +213,8 @@ function applyOwnershipUIRestrictions() {
             if (!banner) {
                 banner = document.createElement('div');
                 banner.id = 'readonly-banner';
-                banner.style.cssText = 'background: #fef2f2; border: 1px solid #fee2e2; padding: 1px; margin-top: 42px; border-radius: 8px; text-align: center; color: #991b1b; font-size: 11px; font-weight: bold; width: 100%;';
-                banner.innerHTML = '🔒 وضع العرض فقط . لا تمتلك صلاحيات التعديل أو الحذف.';
+                banner.style.cssText = 'background: #fef2f2; border: 1px solid #fee2e2; padding: 2px; margin-top: 2px; border-radius: 8px; text-align: center; color: #991b1b; font-size: 10px; font-weight: bold; width: 100%;';
+                banner.innerHTML = '🔒  لا تمتلك صلاحيات التعديل أو الحذف او النشر';
                 noteForm.parentNode.insertBefore(banner, noteForm);
             }
         } else {
@@ -291,10 +291,10 @@ function showTrialBanner(daysLeft) {
     if (!trialBanner) {
         trialBanner = document.createElement('div');
         trialBanner.id = 'trial-banner-indicator';
-        trialBanner.style.cssText = 'background: #e0f2fe; border: 1px solid #bae6fd; padding: 10px; margin-bottom: 12px; border-radius: 8px; text-align: center; color: #0369a1; font-size: 13px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;';
+        trialBanner.style.cssText = 'background: #e0f2fe; border: 1px solid #bae6fd; padding: 4px; margin-top: 41px; border-radius: 8px; text-align: center; color: #0369a1; font-size: 12px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 5px;';
         mainContainer.insertBefore(trialBanner, mainContainer.firstChild);
     }
-    trialBanner.innerHTML = `🌟 النسخة الكاملة مجانية تجريبية لمشاهدة العمل والبحث فيه (متبقي <b>${daysLeft} أيام</b> على انتهاء التجربة).`;
+    trialBanner.innerHTML = `نسخة كاملة مجانية لمشاهدة العمل والبحث فيه ..<span style="color: #ef4444;"><b>${daysLeft} ( 1 أيام )</b> على انتهاء التجربة`;
 }
 
 function showGlobalGiftBanner() {
