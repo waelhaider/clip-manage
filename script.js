@@ -15,7 +15,7 @@ provider.addScope('https://www.googleapis.com/auth/userinfo.email');
 // Auth states cached in memory
 let currentUser = null;
 let googleAccessToken = null;
-let isOwner = true; // By default can write (local fallback mode)
+let isOwner = false; // By default read-only (spectator mode) until confirmed as owner in database
 let ownerEmail = null;
 let googleDriveFileId = null;
 
@@ -209,19 +209,14 @@ function applyOwnershipUIRestrictions() {
     if (noteForm) {
         if (!isOwner) {
             noteForm.style.display = 'none';
-            let banner = document.getElementById('readonly-banner');
-            if (!banner) {
-                banner = document.createElement('div');
-                banner.id = 'readonly-banner';
-                banner.style.cssText = 'background: #fef2f2; border: 1px solid #fee2e2; padding: 2px; margin-top: 2px; border-radius: 8px; text-align: center; color: #991b1b; font-size: 10px; font-weight: bold; width: 100%;';
-                banner.innerHTML = '🔒  لا تمتلك صلاحيات التعديل أو الحذف او النشر';
-                noteForm.parentNode.insertBefore(banner, noteForm);
-            }
         } else {
             noteForm.style.display = 'flex';
-            const banner = document.getElementById('readonly-banner');
-            if (banner) banner.remove();
         }
+    }
+
+    const saveEditTranslate = document.getElementById('save-edit-translate');
+    if (saveEditTranslate) {
+        saveEditTranslate.style.display = isOwner ? 'block' : 'none';
     }
 }
 
@@ -267,18 +262,7 @@ function updateSyncBadge() {
             </div>
         `;
     } else {
-        indicator.innerHTML = `<span id="badge-login-trigger" class="sync-badge offline" style="cursor: pointer; user-select: none; padding: 2px 6px; font-size: 10px;" title="انقر لتسجيل الدخول والمزامنة سحابياً">💾 حفظ محلي 🔑</span>`;
-        const loginTrigger = document.getElementById('badge-login-trigger');
-        if (loginTrigger) {
-            loginTrigger.onclick = () => {
-                isSidebarOpen = true;
-                const sidebar = document.getElementById('sidebar');
-                const overlay = document.getElementById('sidebar-overlay');
-                if (sidebar) sidebar.classList.add('open');
-                if (overlay) overlay.classList.add('show');
-                showToast("يرجى الضغط على 'تسجيل الدخول عبر الايميل' داخل القائمة الجانبية");
-            };
-        }
+        indicator.innerHTML = ``;
     }
 }
 
@@ -291,7 +275,7 @@ function showTrialBanner(daysLeft) {
     if (!trialBanner) {
         trialBanner = document.createElement('div');
         trialBanner.id = 'trial-banner-indicator';
-        trialBanner.style.cssText = 'background: #e0f2fe; border: 1px solid #bae6fd; padding: 4px; margin-top: 41px; border-radius: 8px; text-align: center; color: #0369a1; font-size: 11px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 1px;';
+        trialBanner.style.cssText = 'background: #e0f2fe; border: 1px solid #bae6fd; padding: 1px; margin: 0; border-radius: 8px; text-align: center; color: #0369a1; font-size: 10px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 2px; box-sizing: border-box;';
         mainContainer.insertBefore(trialBanner, mainContainer.firstChild);
     }
     trialBanner.innerHTML = `نسخة كاملة مجانية لمشاهدة العمل  .. <span style="color: #ef4444;"><b>(${daysLeft}  يوم </b> على انتهاء التجربة )`;
@@ -305,7 +289,7 @@ function showGlobalGiftBanner() {
     if (!trialBanner) {
         trialBanner = document.createElement('div');
         trialBanner.id = 'trial-banner-indicator';
-        trialBanner.style.cssText = 'background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; margin-bottom: 12px; border-radius: 8px; text-align: center; color: #166534; font-size: 13px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;';
+        trialBanner.style.cssText = 'background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; margin: 0; border-radius: 8px; text-align: center; color: #166534; font-size: 13px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box;';
         mainContainer.insertBefore(trialBanner, mainContainer.firstChild);
     }
     trialBanner.innerHTML = `🎁 هدية من المالك: تم فتح النسخة الكاملة مجاناً لفترة محدودة لجميع الزوار!`;
@@ -803,7 +787,7 @@ async function handleLogout() {
         currentUser = null;
         googleAccessToken = null;
         googleDriveFileId = null;
-        isOwner = true;
+        isOwner = false;
         ownerEmail = null;
         
         loadData();
@@ -832,7 +816,7 @@ function updateAuthUI() {
         if (isUserOwner) {
             authSection.innerHTML = `
                 <div class="auth-user-info">
-                    <span>مرحباً، <span class="auth-user-email">${currentUser.displayName || userMail}</span></span>
+                    <span>مرحباً، <span class="auth-user-email">${currentUser.email}</span></span>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 5px; width: 100%;">
                     <button id="auth-logout-btn" class="auth-logout-btn" style="width: 100%;">تسجيل الخروج</button>
@@ -841,7 +825,7 @@ function updateAuthUI() {
         } else {
             authSection.innerHTML = `
                 <div class="auth-user-info">
-                    <span>مرحباً، <span class="auth-user-email">${currentUser.displayName || userMail}</span></span>
+                    <span>مرحباً، <span class="auth-user-email">${currentUser.email}</span></span>
                     <a href="mailto:${mailOwner || 'alwaelai2000@gmail.com'}" style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; margin-top: 4px; padding: 4px 8px; border-radius: 6px; background-color: #f0fdf4; color: #166534; text-decoration: none; font-size: 11px; font-weight: bold; border: 1px solid #bbf7d0; transition: all 0.2s; direction: ltr;" onmouseover="this.style.backgroundColor='#dcfce7'" onmouseout="this.style.backgroundColor='#f0fdf4'">
                         📧 للتواصل: ${mailOwner || 'alwaelai2000@gmail.com'}
                     </a>
@@ -1256,7 +1240,7 @@ function renderNotes() {
             lockContainer.innerHTML += `
                 <div style="width: 100%; border-top: 1px solid #f1f5f9; padding-top: 12px;">
                     <p style="font-size: 12px; color: #64748b; margin-bottom: 12px; font-weight: 500;">
-                        سجل دخولك الآن لتبدأ فترة تجريبية مجانية كاملة لمدة محدودة:
+                        سجل دخولك  لتبدأ فترة تجريبية مجانية كاملة لمدة محدودة
                     </p>
                     <button id="lock-login-btn" class="primary-btn" style="width: 100%; padding: 10px; font-size: 13.5px; font-weight: bold; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
                         🔑 تسجيل الدخول بالبريد الإلكتروني
@@ -2088,19 +2072,62 @@ function initEventListeners() {
     document.getElementById('trash-btn').onclick = () => openModal('TRASH');
     document.getElementById('font-size-btn').onclick = () => openFontSizeModal();
 
-    // Tabs (boards-nav) scroll and touch behavior (for mobile & mouse scroll support)
+    // Tabs (boards-nav) click-and-drag scroll behavior
     if (elements.boardsNav) {
-        let scrollTimeout;
-        const showScrollbar = () => {
-            elements.boardsNav.classList.add('is-scrolling');
-            clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(() => {
-                elements.boardsNav.classList.remove('is-scrolling');
-            }, 1200); // Fades out after 1.2s of no scroll activity
-        };
-        elements.boardsNav.addEventListener('scroll', showScrollbar, { passive: true });
-        elements.boardsNav.addEventListener('touchstart', showScrollbar, { passive: true });
-        elements.boardsNav.addEventListener('touchmove', showScrollbar, { passive: true });
+        // Mouse click-and-drag scroll logic
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+        let moved = false;
+
+        elements.boardsNav.addEventListener('mousedown', (e) => {
+            // Only toggle on left click (button 0)
+            if (e.button !== 0) return;
+            isDown = true;
+            elements.boardsNav.classList.add('active-drag');
+            startX = e.pageX - elements.boardsNav.offsetLeft;
+            scrollLeft = elements.boardsNav.scrollLeft;
+            moved = false;
+        });
+
+        elements.boardsNav.addEventListener('mouseleave', () => {
+            if (isDown) {
+                isDown = false;
+                elements.boardsNav.classList.remove('active-drag');
+                elements.boardsNav.classList.remove('is-dragging-active');
+            }
+        });
+
+        elements.boardsNav.addEventListener('mouseup', () => {
+            if (isDown) {
+                isDown = false;
+                elements.boardsNav.classList.remove('active-drag');
+                setTimeout(() => {
+                    elements.boardsNav.classList.remove('is-dragging-active');
+                }, 0);
+            }
+        });
+
+        elements.boardsNav.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - elements.boardsNav.offsetLeft;
+            const walk = (x - startX) * 1.5; // Drag speed multiplier
+            if (Math.abs(walk) > 4) {
+                moved = true;
+                elements.boardsNav.classList.add('is-dragging-active');
+            }
+            elements.boardsNav.scrollLeft = scrollLeft - walk;
+        });
+
+        // Capture child clicks during active drag events to prevent accidental tab clicks
+        elements.boardsNav.addEventListener('click', (e) => {
+            if (moved) {
+                e.preventDefault();
+                e.stopPropagation();
+                moved = false; // Reset state
+            }
+        }, true); // Capture phase is critical to run before child handlers
     }
 
     // Form
@@ -2292,6 +2319,10 @@ function initEventListeners() {
     };
 
     document.getElementById('save-edit-translate').onclick = () => {
+        if (!isOwner) {
+            showToast('لا تمتلك صلاحية التعديل');
+            return;
+        }
         const newContent = elements.originalText.value;
         const noteId = modal.data.id;
         notes = notes.map(n => n.id === noteId ? { ...n, content: newContent } : n);
@@ -2351,6 +2382,7 @@ function init() {
     renderBoardsList();
     renderNotes();
     initEventListeners();
+    applyOwnershipUIRestrictions();
     // Set initial state for boards list and collapsible sections
     document.getElementById('boards-section-content').style.display = isBoardsExpanded ? 'block' : 'none';
     document.getElementById('boards-chevron').textContent = isBoardsExpanded ? '▼' : '▶';
